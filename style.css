@@ -1,0 +1,15 @@
+body {
+  margin: 0;
+  padding: 0;
+}
+
+#map {
+  height: 60vh;
+}
+
+#chart-container {
+  margin-top: 20px;
+  padding: 20px; /* Add some padding for better visual separation */
+  background-color: #f8f8f8; /* Add a light background color */
+  border-radius: 5px; /* Add border-radius for rounded corners */
+}

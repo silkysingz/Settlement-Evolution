@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spatial Analysis of Population Distribution and Urbanization in the Greater Banjul Area, The Gambia</title>
+  <link rel="stylesheet" href="leaflet/leaflet.css">
+  <!-- Include Leaflet Control Search plugin styles -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <!-- Include Leaflet Locate plugin styles -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr; /* Adjust the grid layout as needed */
+      grid-template-rows: auto 1fr; /* Add an auto-sized row for the title */
+      height: 100vh; /* Set the height of the body to fill the viewport */
+    }
+
+    h1 {
+      grid-column: 1 / 3; /* Title spans both columns */
+      font-weight: bold;
+      text-align: center;
+      margin: 0;
+      padding: 0px; /* Adjust padding as needed */
+      color: black; /* Text color */
+      background: linear-gradient(90deg, rgba(255, 0, 0, 0.5), rgba(255, 255, 255, 1), rgba(0, 0, 255, 0.5), rgba(255, 255, 255, 1), rgba(0, 128, 0, 0.5)); /* Red, White, Blue, White, Green with reduced intensity */
+      -webkit-background-clip: text;
+      background-clip: text;
+      border: 3px solid; /* Border around the title */
+      border-image: linear-gradient(90deg, red, blue, green); /* Gradient border with high-intensity red, blue, green */
+      border-image-slice: 1; /* Border image slice */
+    }
+
+    #map {
+      grid-column: 1 / 2; /* Map takes the first column */
+      grid-row: 2/ 3; /* Map takes the second row */
+      height: 100vh; /* Map takes the full height of the body */
+    }
+
+    #chart-container {
+      grid-column: 2/ 3; /* Chart container takes the second column */
+      grid-row: 2/ 3; /* Chart container takes the second row */
+      height: 200vh; /* Chart container takes the full height of the body */
+      padding: 0px; /* Add padding as needed */
+      overflow-y: auto; /* Add scrollbar for the chart container if needed */
+    }
+
+    canvas {
+      display: none; /* Initially hide all chart canvases */
+    }
+
+    canvas.active {
+      display: block; /* Display only the active chart canvas */
+    }
+	/* Add some basic styles to ensure the canvas is visible and has dimensions */
+    #chart-container {
+      width: 100%;
+      margin: auto;
+    }
+  </style>
+</head>
+<body>
+<div id="chart-container">
+    <canvas id="myChart"></canvas>
+  </div>
+  <h1>Spatial Analysis of Population Distribution and Urbanization in the Greater Banjul Area, The Gambia</h1>
+  <div id="map"></div>
+ <div id="chart-container">
+  <select id="regionSelector" onchange="updateChartData()">
+    <option value="banjul">Banjul</option>
+    <option value="kanifing">Kanifing</option>
+    <option value="kombo_north">Kombo North</option>
+    <option value="kombo_central">Kombo Central</option>
+    <option value="kombo_south">Kombo South</option>
+    <option value="gba">Greater Banjul Area</option>
+  </select>
+  <label for="datasetSelector">Select Dataset:</label>
+  <select id="datasetSelector" onchange="updateChartData()">
+    <option value="pgr">Population Growth Rate (PGR)</option>
+	<option value="populationData">Population Distribution</option>
+    <option value="lcr">Land Consumption Rate (LCR)</option>
+    <option value="lcrpgr">Land Consumption Rate to Population Growth Rate(LCRPGR)</option>
+    <option value="noCompoundData">Compounds Density per Hectare </option>
+    <option value="buildingsData">Buidings Density per Hectare </option>
+    <option value="urbanExtentData">Urban Extent in Hectare</option>
+    <option value="compoundsChangeData">Compounds Change Rate (in Percentage) </option>
+    <option value="noOfCompoundsData">Number Of Compounds </option>
+    <option value="noOfBuildingsData">Number Of Buildings</option>
+    <!-- Add other datasets as needed -->
+  </select>
+
+  <label for="chartTypeSelector">Select Chart Type:</label>
+  <select id="chartTypeSelector" onchange="updateChartData()">
+    <option value="bar">Bar Chart</option>
+    <option value="horizontalBar">Horizontal Bar Chart</option>
+    <option value="line">Line Chart</option>
+    <option value="radar">Radar Chart</option>
+    <option value="polarArea">Polar Area Chart</option>
+    <option value="pie">Pie Chart</option>
+    <option value=" Spline line "> Spline Line Chart</option>
+    <option value="bubble">Bubble Chart</option>
+    <option value=" dotplot"> Dot Plot</option>
+    <option value="Radial bar chart">Radial Bar Chart</option>
+    <option value="column chart">Column Chart</option>
+    <option value="doughnut">Doughnut Chart</option>
+    <option value="area">Area Chart</option>
+  </select>
+
+    <!-- Place canvas elements outside the script tags -->
+    <canvas id="myChart1" class="active"></canvas>
+    <canvas id="myChart2"></canvas>
+    <!-- Add more charts as needed -->
+  </div>
+   <!-- Include Leaflet scripts -->
+  <script src="leaflet/leaflet.js"></script>
+
+   <!-- Include Leaflet Control Search plugin script -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.js"></script>
+
+   <!-- Include Chart.js script -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/Chart.js"></script>
+
+   <!-- Include Leaflet Locate plugin script -->
+  <script src="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+
+   <!-- Your custom JavaScript code -->
+ <script>
+    var map = L.map('map').setView([13.341254, -16.691788], 12);
+  
+    // Base Map Layers
+    var baseMaps = {
+      "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }),
+      "Esri Satellite Imagery": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri'
+      }),
+      "CartoDB Dark Matter": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+        attribution: '© CartoDB'
+      }),
+      "Esri NatGeo World Map": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri'
+      }),
+      "Street Map": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }),
+	  "Topographic Map": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenTopoMap contributors'
+      }),
+      "Topographic Map": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenTopoMap contributors'
+      }),
+      "Light Map": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+        attribution: '© CartoDB'
+      })
+    };
+  
+    // Layer Control for Base Maps
+    L.control.layers(baseMaps).addTo(map);
+
+    // Add the default base map
+    baseMaps.OpenStreetMap.addTo(map);
+	
+	// Enable panning inertia
+    map.dragging.enable();
+
+    // Initialize search control
+    var searchControl = L.Control.geocoder({
+      defaultMarkGeocode: false,
+    });
+
+    // Add search control to the map
+    searchControl.addTo(map);
+
+    // Initialize Locate control
+    L.control.locate().addTo(map);
+
+     var wmsLayers = [
+    createWMSLayer('gba_dataset', 'gba_dataset'),
+    createWMSLayer('gba_lcr_1983_1993', 'gba_lcr_1983_1993'),
+    createWMSLayer('gba_lcr_1993_2003', 'gba_lcr_1993_2003'),
+    createWMSLayer('GBA_LCR_2003_2013', 'gba_lcr_2003_2013'),
+    createWMSLayer('gba_lcr_2003_2013', 'gba_lcr_2013_2023'),
+	createWMSLayer('gba_bild_dens', 'gba_bild_dens'),
+	//createWMSLayer('gba_compound_distr', 'gba_compound_distr'),
+	//createWMSLayer('gba_pop_dens_2013_h3', 'gba_pop_dens_2013_h3'),
+	//createWMSLayer('gba_pop_dens_2023_h3', 'gba_pop_dens_2023_h3'),
+    createWMSLayer('banjul', 'banjul'),
+	//createWMSLayer('banjul_builtup_extent_2023', 'banjul_builtup_extent_2023'),
+    createWMSLayer('bjl_lcr_1983_1993', 'bjl_lcr_1983_1993'),
+    createWMSLayer('bjl_lcr_1993_2003', 'bjl_lcr_1993_2003'),
+    createWMSLayer('bjl_lcr_2003_2013', 'bjl_lcr_2003_2013'),
+    createWMSLayer('bjl_lcr_2013-2023', 'bjl_lcr_2013-2023'),
+	//createWMSLayer('banjul_bild_dens', 'banjul_bild_dens'),
+	//createWMSLayer('banjul_pop_density_2013', 'banjul_pop_density_2013'),
+	//createWMSLayer('banjul_pop_density_2023', 'banjul_pop_density_2023'),
+    createWMSLayer('kanifing', 'kanifing'),
+	//createWMSLayer('kmc_builtup_extent-2023', 'kmc_builtup_extent-2023'),
+    createWMSLayer('kmc_lcr_1983_1993', 'kmc_lcr_1983_1993'),
+    createWMSLayer('kmc_lcr_1993_2003', 'kmc_lcr_1993_2003'),
+    createWMSLayer('kmc_lcr_2003_2013', 'kmc_lcr_2003_2013'),
+    createWMSLayer('kmc_lcr_2013-2023', 'kmc_lcr_2013-2023'),
+    //createWMSLayer('kanifing_bild_dens', 'kanifing_bild_dens'),
+	//createWMSLayer('kanifing_pop_density_2013', 'kanifing_pop_density_2013'),
+	createWMSLayer('kanifing_pop_density_2023', 'kanifing_pop_density_2023'),
+    createWMSLayer('Kombo_North', 'kombo_north'),
+	//createWMSLayer('kombo_north_builtup_extent_2023', 'kombo_north_builtup_extent_2023'),
+    createWMSLayer('kn_lcr_1983_1993', 'kn_lcr_1983_1993'),
+    createWMSLayer('kn_lcr_1993_2003', 'kn_lcr_1993_2003'),
+    createWMSLayer('kn_lcr_2003_2013', 'kn_lcr_2003_2013'),
+    createWMSLayer('kn_lcr_2013-2023', 'kn_lcr_2013-2023'),
+	//createWMSLayer('kombo_north_bild_dens', 'kombo_north_bild_dens'),
+	//createWMSLayer('kombo_north_pop_density_2013', 'kombo_north_pop_density_2013'),
+	//createWMSLayer('kombo_north_pop_density_2023', 'kombo_north_pop_density_2023'),
+    createWMSLayer('kombo_central', 'kombo_central'),
+	//createWMSLayer('kombo_central_builtup_extent_2023', 'kombo_central_builtup_extent_2023'),
+    createWMSLayer('kc_lcr_1983_1993', 'kc_lcr_1983_1993'),
+    createWMSLayer('kc_lcr1_1993_2003', 'kc_lcr1_1993_2003'),
+    createWMSLayer('kc_lcr_2003-2013', 'kc_lcr_2003_2013'),
+    createWMSLayer('kc__lcr_2013-2023', 'kc__lcr_2013-2023'),
+	//createWMSLayer('kombo_central_bild_dens', 'kombo_central_bild_dens'),
+	//createWMSLayer('kombo_central_pop_density_2013', 'kombo_central_pop_density_2013'),
+	//createWMSLayer('kombo_central_pop_density_2023', 'kombo_central_pop_density_2023'),
+	//createWMSLayer('kombo_south_builtup_extent_2023', 'kombo_south_builtup_extent_2023'),
+    createWMSLayer('kombo_south', 'kombo_south'),
+    createWMSLayer('ks_lcr_1983_1993', 'ks_lcr_1983_1993'),
+    createWMSLayer('ks_lcr_1993_2003', 'ks_lcr_1993_2003'),
+    createWMSLayer('ks_lcr_2003_2013', 'ks_lcr_2003_2013'),
+    createWMSLayer('ks_lcr_2013-2023', 'ks_lcr_2013-2023'),
+	//createWMSLayer('kombo_south_bild_dens', 'kombo_south_bild_dens'),
+	//createWMSLayer('kombo_south_pop_density_2013', 'kombo_south_pop_density_2013'),
+	//createWMSLayer('kombo_south_pop_density_2023', 'kombo_south_pop_density_2023'),
+    //createWMSLayer('major_roads', 'major_roads'),
+	////createWMSLayer('urban_extent_indicator_lcr_2003', 'urban_extent_indicator_lcr_2003'),
+	//createWMSLayer('urban_extent_indicator_lcr_2013', 'urban_extent_indicator_lcr_2013'),
+	//createWMSLayer('urban_extent_indicator_lcr_2023', 'urban_extent_indicator_lcr_2023'),
+	//createWMSLayer('urban_extent_indicator_pgr_2003', 'urban_extent_indicator_pgr_2003'),
+	//createWMSLayer('urban_extent_indicator_pgr_2013', 'urban_extent_indicator_pgr_2013'),
+	//createWMSLayer('urban_extent_indicator_pgr_2023', 'urban_extent_indicator_pgr_2023'),
+	//createWMSLayer('urban_extent_indicator_lcrpgr_2003', 'urban_extent_indicator_lcrpgr_2003'),
+	//createWMSLayer('urban_extent_indicator_lcrpgr_2013', 'urban_extent_indicator_lcrpgr_2013'),
+	//createWMSLayer('urban_extent_indicator_lcrpgr_2023', 'urban_extent_indicator_lcrpgr_2023'),
+	//createWMSLayer('kombo_south_pop_density_2023', 'kombo_south_pop_density_2023'),
+    //createWMSLayer('kombo_south_pop_density_2013', 'kombo_south_pop_density_2013'),
+	//createWMSLayer('kombo_south_pop_density_2023', 'kombo_south_pop_density_2023'),
+    //createWMSLayer('kombo_north_pop_density_2023', 'kombo_north_pop_density_2023'),
+    //createWMSLayer('kombo_north_pop_density_2013', 'kombo_north_pop_kombo_north_builtup_extent_2023density_2013'),
+    //createWMSLayer('kombo_north_builtup_extent_2013', 'kombo_north_builtup_extent_2013'),
+    //createWMSLayer('kombo_central_pop_density_2013', 'kombo_central_pop_density_2013'),
+    //createWMSLayer('kombo_central_pop_density_2023', 'kombo_central_pop_density_2023'),
+    //createWMSLayer('kombo_central_builtup_extent_2013', 'kombo_central_builtup_extent_2013'),
+    //createWMSLayer('kmc_builtup_extent-2013', 'kmc_builtup_extent-2013'),
+    //createWMSLayer('kanifing_pop_density_2013', 'kanifing_pop_density_2013'),
+    //createWMSLayer('kanifing_pop_density_2023', 'kanifing_pop_density_2023'),
+    //createWMSLayer('gba_dwelling_density_2023', 'gba_dwelling_density_2023'),
+    //createWMSLayer('kombo_central', 'kombo_central'),
+    //createWMSLayer('banjul_pop_density_2023', 'banjul_pop_density_2023'),
+    //createWMSLayer('banjul_builtup_extent_2013', 'banjul_builtup_extent_2013'),
+   // createWMSLayer('kc_dwelling_density_2023', 'kc_dwelling_density_2023'),
+    //createWMSLayer('banjul_dwelling_density_2023', 'banjul_dwelling_density_2023'),
+    //createWMSLayer('kmc_dwelling_density_2023', 'kmc_dwelling_density_2023'),
+    //createWMSLayer('kn_dwelling_density_2023', 'kn_dwelling_density_2023'),
+    //createWMSLayer('ks_dwelling_density_2023', 'ks_dwelling_density_2023'),
+      // Add more layers as needed
+    ];
+
+    // Layer Control for WMS Layers
+    var wmsLayerControl = L.control.layers();
+    wmsLayers.forEach(function (layer) {
+      wmsLayerControl.addOverlay(layer, layer.options.attribution);
+    });
+
+    // Add WMS Layers to the Map
+    wmsLayers.forEach(function (layer) {
+      layer.addTo(map);
+    });
+
+    // Add Layer Control for WMS Layers to the Map
+    wmsLayerControl.addTo(map);
+
+    // Function to Create WMS Layer
+    function createWMSLayer(layerName, layerId) {
+      return L.tileLayer.wms('http://localhost:8085/geoserver/mastersthesis_2023/wms', {
+        layers: layerId,
+        format: 'image/png',
+        transparent: true,
+        attribution: layerName
+      });
+    }
+	
+   var selectedRegion = 'gba'; // Default selected region
+var selectedDataset = 'pgr'; // Default selected dataset
+var selectedChartType = 'line'; // Default selected chart type
+   // Function to update chart data based on the selected region, dataset, and chart type
+function updateChartData() {
+  // Get the selected region, dataset, and chart type from the dropdowns
+  selectedRegion = document.getElementById('regionSelector').value;
+  selectedDataset = document.getElementById('datasetSelector').value;
+  selectedChartType = document.getElementById('chartTypeSelector').value;
+
+      var data;
+switch (selectedRegion) {
+  case 'banjul':
+    data = [
+      { label: 'Population Distribution from 2003-2023', values: [35061, 31054, 30862]},
+      { label: 'Population Growth Rate (PGR) from 1993-2003', values: [-0.0188, -0.0121, -0.0006]},
+      { label: 'Land Consumption Rate (LCR) from 2003-2023', values: [0.01, 0.011, 0.008]},
+      { label: 'Ratio of LCR to PGR from 2003-2023', values: [-0.509, -0.923, -12.292]},
+      { label: 'Compound Density Per Ha (2013-2023)', values: [9, 7, 6]},
+      { label: 'Building Density Per Ha (2013-2023)', values: [37, 30, 25]},
+      { label: 'Urban Extent from 1993-2023', values: [284, 317, 342]},
+      { label: 'Number of Compounds Distribution from 1993-2023', values: [2263, 1919, 1950]},
+	  { label: 'Percentage change of Compounds Distribution from 1993-2023', values: [-15.2, 1.6, -8.3]},
+	  { label: 'Number of Buildings Distribution from 1993-2023', values: [9453, 8384, 7890]},
+	  { label: 'Percentage change of Buildings Distribution from 1993-2023', values: [-11.3, -5.9, 0.1]},
+      // Add other datasets as needed
+    ];
+    break;
+  case 'kanifing':
+    data = [
+      { label: 'Population Distribution from 2003-2023', values: [322410, 377134, 417670]},
+      { label: 'Population Growth Rate (PGR) from 1993-2003', values: [0.0346, 0.0157, 0.0102]},
+      { label: 'Land Consumption Rate (LCR) from 2003-2023', values: [0.007, 0.006, 0.006]},
+      { label: 'Ratio of LCR to PGR from 2003-2023', values: [0.210, 0.395, 0.613]},
+      { label: 'Compound Density Per Ha (2013-2023)', values: [5, 6, 7]},
+      { label: 'Building Density Per Ha (2013-2023)', values: [13, 18, 19]},
+      { label: 'Urban Extent from 1993-2023', values: [3592.7, 3822.1, 4069.0]},
+	  { label: 'Number of Compounds Distribution from 1993-2023', values: [16104, 20907, 25438]},
+      { label: 'Percentage change of Compounds Distribution from 1993-2023', values: [29.8, 21.7, 0.5]},
+	  { label: 'Number of Compounds Distribution from 1993-2023', values: [42715, 65654, 73217]},
+      { label: 'Percentage change of Buildings Distribution from 1993-2023', values: [53.7, 11.5, 0.5]},
+      // Add other datasets as needed
+    ];
+    break;
+  case 'kombo_north':
+    data = [
+      { label: 'Population Distribution from 2003-2023', values: [166351, 339377, 657549]},
+      { label: 'Population Growth Rate (PGR) from 1993-2003', values: [0.0726, 0.0713, 0.0661]},
+      { label: 'Land Consumption Rate (LCR) from 2003-2023', values: [0.061, 0.045, 0.031]},
+      { label: 'Ratio of LCR to PGR from 2003-2023', values: [0.844, 0.634, 0.466]},
+      { label: 'Compound Density Per Ha (2013-2023)', values: [2, 2, 3]},
+      { label: 'Building Density Per Ha (2013-2023)', values: [5, 4, 7]},
+      { label: 'Urban Extent from 1993-2023', values: [6772.5, 10645.9, 14488.5]},
+	  { label: 'Number of Compounds Distribution from 1993-2023', values: [8593, 12383, 32848]},
+      { label: 'Percentage change of Compounds Distribution from 1993-2023', values: [44.1, 165.3, 62.3]},
+	  { label: 'Number of Buildings Distribution from 1993-2023', values: [17211, 27813, 71042]},
+      { label: 'Percentage change of Buildings Distribution from 1993-2023', values: [61.6, 155.4, 70.4]},
+      // Add other datasets as needed
+    ];
+    break;
+  case 'kombo_central':
+    data = [
+      { label: 'Population Distribution from 2003-2023', values: [84315, 140029, 248805]},
+      { label: 'Population Growth Rate (PGR) from 1993-2003', values: [0.0408, 0.0507, 0.0575]},
+      { label: 'Land Consumption Rate (LCR) from 2003-2023', values: [0.076, 0.073, 0.052]},
+      { label: 'Ratio of LCR to PGR from 2003-2023', values: [1.859, 1.441, 0.906]},
+      { label: 'Compound Density Per Ha (2013-2023)', values: [5, 3, 2]},
+      { label: 'Building Density Per Ha (2013-2023)', values: [11, 8, 5]},
+      { label: 'Urban Extent from 1993-2023', values: [2294.7, 4765.5, 8020.5]},
+	  { label: 'Number of Compounds Distribution from 1993-2023', values: [5153, 7425, 11604]},
+      { label: 'Percentage change of Compounds Distribution from 1993-2023', values: [44.1, 56.3, 46.4]},
+	  { label: 'Number of Buildings Distribution from 1993-2023', values: [11503, 18589, 25529]},
+      { label: 'Percentage change of Buildings Distribution from 1993-2023', values: [61.6, 37.3, 62.4]},
+      // Add other datasets as needed
+    ];
+    break;
+  case 'kombo_south':
+     data = [
+      { label: 'Population Distribution from 2003-2023', values: [62531, 106780, 205686]},
+      { label: 'Population Growth Rate (PGR) from 1993-2003', values: [0.0454, 0.0535, 0.0656]},
+      { label: 'Land Consumption Rate (LCR) from 2003-2023', values: [0.06, 0.021, 0.0146]},
+      { label: 'Ratio of LCR to PGR from 2003-2023', values: [1.328, 0.399, 2.226]},
+      { label: 'Compound Density Per Ha (2013-2023)', values: [3, 2, 3]},
+      { label: 'Building Density Per Ha (2013-2023)', values: [7, 6, 7]},
+      { label: 'Urban Extent from 1993-2023', values: [2527.8, 3129.3, 13465.7]},
+	  { label: 'Number of Compounds Distribution from 1993-2023', values: [3780, 5447, 10011]},
+      { label: 'Percentage change of Compounds Distribution from 1993-2023', values: [44.1, 83.8, 86.5]},
+	  { label: 'Number of Buildings Distribution from 1993-2023', values: [9214, 14890, 22024]},
+      { label: 'Percentage change of Buildings Distribution from 1993-2023', values: [61.6, 48, 73.5]},
+      // Add other datasets as needed
+    ];
+    break;
+  case 'gba':
+     data = [
+      { label: 'Population Distribution from 2003-2023', values: [670668, 994374, 1560572]},
+      { label: 'Population Growth Rate (PGR) from 1993-2003', values: [0.0406, 0.0394, 0.0451]},
+      { label: 'Land Consumption Rate (LCR) from 2003-2023', values: [0.046, 0.038, 0.058]},
+      { label: 'Ratio of LCR to PGR from 2003-2023', values: [1.143, 0.971, 1.280]},
+      { label: 'Compound Density Per Ha (2013-2023)', values: [4, 3, 4]},
+      { label: 'Building Density Per Ha (2013-2023)', values: [6, 9, 9]},
+      { label: 'Urban Extent from 1993-2023', values: [15471.7, 22680.4, 40386.4]},
+	  { label: 'Number of Compounds Distribution from 1993-2023', values: [35893, 48081, 81851]},
+      { label: 'Percentage change of Compounds Distribution from 1993-2023', values: [34.0, 70.2, 42.1]},
+	  { label: 'Number of Buildings Distribution from 1993-2023', values: [55277, 135330, 199702]},
+      { label: 'Percentage change of Buildings Distribution from 1993-2023', values: [144.8, 47.6, 41.3]},
+      // Add other datasets as needed
+    ];
+    break;
+  // Add cases for other regions
+
+  default:
+    data = [];
+    break;
+}
+      //Update chart based on the selected chart type
+updateChart('myChart1', data, selectedChartType);
+    }
+
+    // Function to update a specific chart with new data and type
+// Function to update a specific chart with new data and type
+function updateChart(chartId, data, chartType) {
+  var labels = ['1993-2003', '2003-2013', '2013-2023']; // Replace with your actual labels
+
+ var chartData = data.map((entry, index) => ({
+  label: entry.label,
+  data: entry.values,
+  backgroundColor: getBackgroundColor(index),
+  borderColor: getBorderColor(index),
+  borderWidth: 1,
+}));
+
+function getBackgroundColor(index) {
+  // Define an array of higher intensity background colors for each dataset
+  var backgroundColors = [
+    'rgba(255, 0, 0, 0.5)',      // Red
+    'rgba(0, 255, 0, 0.5)',      // Green
+    'rgba(0, 0, 255, 0.5)',      // Blue
+    'rgba(255, 255, 0, 0.5)',    // Yellow
+    'rgba(255, 0, 255, 0.5)',    // Magenta
+    'rgba(0, 255, 255, 0.5)',    // Cyan
+    'rgba(255, 128, 0, 0.5)',    // Orange
+    'rgba(128, 0, 128, 0.5)',    // Purple
+    'rgba(0, 128, 128, 0.5)',    // Teal
+    'rgba(255, 128, 128, 0.5)',  // Light Red
+    'rgba(128, 255, 128, 0.5)',  // Light Green
+    // Add more colors as needed
+  ];
+
+  // Use modulus to loop through colors if there are more datasets than colors
+  return backgroundColors[index % backgroundColors.length];
+}
+
+function getBorderColor(index) {
+  // Define an array of higher intensity border colors for each dataset
+  var borderColors = [
+    'rgba(255, 0, 0, 1)',      // Red
+    'rgba(0, 255, 0, 1)',      // Green
+    'rgba(0, 0, 255, 1)',      // Blue
+    'rgba(255, 255, 0, 1)',    // Yellow
+    'rgba(255, 0, 255, 1)',    // Magenta
+    'rgba(0, 255, 255, 1)',    // Cyan
+    'rgba(255, 128, 0, 1)',    // Orange
+    'rgba(128, 0, 128, 1)',    // Purple
+    'rgba(0, 128, 128, 1)',    // Teal
+    'rgba(255, 128, 128, 1)',  // Light Red
+    'rgba(128, 255, 128, 1)',  // Light Green
+    // Add more colors as needed
+  ];
+
+  // Use modulus to loop through colors if there are more datasets than colors
+  return borderColors[index % borderColors.length];
+}
+
+var chartOptions = {
+  type: chartType, // Use the selected chart type
+  data: {
+    labels: labels,
+    datasets: chartData,
+  },
+  options: {
+    scales: {
+      x: {
+        stacked: true,
+      },
+      y: {
+        beginAtZero: true,
+        // Add more scale options as needed
+      },
+    },
+    plugins: {
+      legend: {
+        position: 'bottom',
+      },
+    },
+  },
+};
+  // Additional configuration based on chart type
+  if (chartType === 'boxplot') {
+    // Add specific configuration for Box Plot
+  } else if (chartType === 'histogram') {
+    // Add specific configuration for Histogram
+  } else if (chartType === 'polarScatter') {
+    // Add specific configuration for Polar Scatter Chart
+  } else if (chartType === 'bubble') {
+    // Add specific configuration for Bubble Chart
+  } else if (chartType === 'scatter') {
+    // Add specific configuration for Scatter Plot
+  }
+
+  // Create the chart
+  var chart = new Chart(document.getElementById(chartId).getContext('2d'), chartOptions);
+}
+  </script>
+</body>
+</html>
